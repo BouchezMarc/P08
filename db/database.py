@@ -67,6 +67,6 @@ def get_session_local():
 
 
 # Module-level exports for backward compatibility with imports like:
-# from db.database import SessionLocal, engine
-SessionLocal = get_session_local()
-engine = get_engine()
+# from db.database import get_session_local, get_engine
+# Note: Do NOT call get_session_local() or get_engine() here as it would
+# trigger database URL validation at import time, breaking tests.

@@ -25,8 +25,13 @@ from prometheus_client import (
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, PlainTextResponse
 
-from db.database import SessionLocal
 from db.models import Prediction
+
+
+def get_db_session():
+    """Get SessionLocal on-demand to support testing with different database URLs."""
+    from db.database import get_session_local
+    return get_session_local()
 
 # =========================================================
 # CONFIG
@@ -125,6 +130,7 @@ class PredictionRequest(BaseModel):
 # =========================================================
 
 async def log_predictions(rows: List[dict]):
+    SessionLocal = get_db_session()
     async with SessionLocal() as session:
         try:
             session.add_all([Prediction(**r) for r in rows])
@@ -354,6 +360,7 @@ async def get_latest_drift_report(env: str = "prod"):
         """
     )
 
+    SessionLocal = get_db_session()
     async with SessionLocal() as session:
         try:
             result = await session.execute(query, {"env": env})
