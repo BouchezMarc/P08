@@ -173,11 +173,11 @@ def test_metrics_includes_profiler_trace(client):
 
 
 def test_drift_latest_success_and_missing(client, monkeypatch):
-    monkeypatch.setattr(
-        api_main,
-        "get_db_session",
-        lambda: DummyDBSession(row={"timestamp": "2026-05-04T00:00:00Z", "env": "prod", "report": {"ok": True}}),
-    )
+    # Mock get_db_session to return a factory (callable) that creates DummyDBSession
+    def mock_session_factory():
+        return DummyDBSession(row={"timestamp": "2026-05-04T00:00:00Z", "env": "prod", "report": {"ok": True}})
+    
+    monkeypatch.setattr(api_main, "get_db_session", lambda: mock_session_factory)
 
     resp = client.get("/drift/latest", params={"env": "prod"})
     assert resp.status_code == 200
@@ -185,7 +185,11 @@ def test_drift_latest_success_and_missing(client, monkeypatch):
     assert payload["env"] == "prod"
     assert payload["report"] == {"ok": True}
 
-    monkeypatch.setattr(api_main, "get_db_session", lambda: DummyDBSession(row=None))
+    # Test missing data
+    def mock_session_factory_empty():
+        return DummyDBSession(row=None)
+    
+    monkeypatch.setattr(api_main, "get_db_session", lambda: mock_session_factory_empty)
     missing = client.get("/drift/latest", params={"env": "stage"})
     assert missing.status_code == 404
 
@@ -225,8 +229,11 @@ def test_predict_test_csv_invalid_params(client):
 
 @pytest.mark.asyncio
 async def test_drift_latest_db_failure(client, monkeypatch):
-    # Simule une DB qui lève une erreur
-    monkeypatch.setattr(api_main, "get_db_session", lambda: DummyDBSession(should_fail=True))
+    # Mock get_db_session to return a factory (callable) that creates DummyDBSession with failure
+    def mock_session_factory():
+        return DummyDBSession(should_fail=True)
+    
+    monkeypatch.setattr(api_main, "get_db_session", lambda: mock_session_factory)
 
     resp = client.get("/drift/latest", params={"env": "prod"})
     assert resp.status_code in (500, 400)
