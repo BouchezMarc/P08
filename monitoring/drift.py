@@ -100,7 +100,7 @@ def chi2_drift(reference: np.ndarray, current: np.ndarray) -> dict[str, Any]:
     if ref_counts.sum() == 0 or cur_counts.sum() == 0:
         return {"statistic": None, "p_value": None, "drift_detected": False}
 
-    # Normalise reference to obtain expected frequencies
+    # Normalize reference to obtain expected frequencies
     expected = ref_counts / ref_counts.sum() * cur_counts.sum()
 
     # Replace zeros in expected with a small number to avoid division errors

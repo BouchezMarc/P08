@@ -79,8 +79,8 @@ def generate_synthetic_data(n_samples: int = 2000, random_state: int = 42) -> pd
     # Target correlated with features (default risk).
     # Log-odds centered so that baseline default rate ≈ 15 %.
     log_odds = (
-        -(data["EXT_SOURCE_2"] - 0.6) * 3.0   # normalised around mean
-        - (data["EXT_SOURCE_3"] - 0.6) * 3.0  # normalised around mean
+        -(data["EXT_SOURCE_2"] - 0.6) * 3.0   # normalized around mean
+        - (data["EXT_SOURCE_3"] - 0.6) * 3.0  # normalized around mean
         + data["CNT_CHILDREN"] * 0.3
         - 1.5                                   # baseline offset → ~15 % default rate
     )
