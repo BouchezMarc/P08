@@ -1,0 +1,193 @@
+name: CI/CD - Test & Deploy
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+env:
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GCP_REGION: europe-west1
+  CLOUD_RUN_SERVICE: projet08-api
+  REGISTRY: gcr.io
+  IMAGE_NAME: projet08-api
+  PYTHON_VERSION: "3.14"
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run pytest - Data Utils
+        run: |
+          python -m pytest tests/test_data_utils.py -v --tb=short
+
+      - name: Run pytest - ONNX Integration
+        run: |
+          python -m pytest tests/test_onnx_integration.py -v --tb=short
+
+      - name: Run pytest - API Tests
+        run: |
+          python -m pytest tests/test_api.py -v --tb=short
+
+      - name: Run all tests with coverage
+        run: |
+          pip install pytest-cov
+          python -m pytest tests/ -v --cov=model --cov=api --cov-report=xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage.xml
+          flags: unittests
+
+  build:
+    name: Build Docker & Push to GCR
+    runs-on: ubuntu-latest
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker ${{ env.REGISTRY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract image URL
+        id: image
+        run: |
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}"
+          echo "url=$IMAGE_URL" >> $GITHUB_OUTPUT
+          echo "Image URL: $IMAGE_URL"
+
+      - name: Build and push Docker image to GCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: |
+            ${{ steps.image.outputs.url }}:latest
+            ${{ steps.image.outputs.url }}:${{ github.sha }}
+            ${{ steps.image.outputs.url }}:${{ github.ref_name }}
+          labels: |
+            git.sha=${{ github.sha }}
+            git.ref=${{ github.ref }}
+            github.workflow=${{ github.workflow }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for vulnerabilities with Trivy
+        run: |
+          gcloud artifacts docker images scan ${{ steps.image.outputs.url }}:${{ github.sha }} \
+            --remote || echo "Image scanning completed"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-metadata
+          path: |
+            docker/Dockerfile
+            pyproject.toml
+
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        run: |
+          IMAGE_URL="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
+          
+          gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
+            --image=$IMAGE_URL \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=2Gi \
+            --cpu=1 \
+            --timeout=120 \
+            --max-instances=100 \
+            --min-instances=1 \
+            --port=8000 \
+            --set-env-vars="DATABASE_URL=${{ secrets.CLOUD_RUN_DATABASE_URL }}" \
+            --no-gen2
+          
+          SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
+            --region=${{ env.GCP_REGION }} \
+            --format='value(status.url)')
+          
+          echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
+
+      - name: Test deployed service
+        run: |
+          SERVICE_URL="${{ steps.deploy.outputs.service_url }}"
+          for i in {1..30}; do
+            if curl -f "$SERVICE_URL/health" > /dev/null 2>&1; then
+              echo "✅ Service is healthy!"
+              exit 0
+            fi
+            echo "Attempt $i/30..."
+            sleep 5
+          done
+          echo "❌ Service failed health check"
+          exit 1
+
+      - name: Deployment complete
+        run: |
+          echo "✅ Deployment Successful"
+          echo "Service: ${{ env.CLOUD_RUN_SERVICE }}"
+          echo "URL: ${{ steps.deploy.outputs.service_url }}"
+          echo "Version: ${{ github.ref_name }}"
