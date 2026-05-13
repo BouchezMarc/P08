@@ -44,6 +44,6 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 EXPOSE 8000
 
 # Run API
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", \
-     "-b", "0.0.0.0:8000", "--timeout", "120", "--access-logfile", "-", \
-     "--error-logfile", "-", "api.main:app"]
+CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", \
+    "-b", "0.0.0.0:8000", "--timeout", "120", "--access-logfile", "-", \
+    "--error-logfile", "-", "api.main:app"]
