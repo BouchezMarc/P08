@@ -32,6 +32,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install runtime Python entrypoints (gunicorn/uvicorn) so console scripts exist
+RUN python -m pip install --no-cache-dir gunicorn uvicorn
+
 # Copy from builder
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /app /app
