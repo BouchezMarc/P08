@@ -43,6 +43,22 @@ Push vers `main` déclenche automatiquement:
 
 Voir [CLOUD_RUN_DEPLOYMENT.md](CLOUD_RUN_DEPLOYMENT.md) pour la configuration initiale.
 
+### Configuration GCP initiale
+
+Le script de préparation se trouve dans [scripts/setup-gcp.sh](scripts/setup-gcp.sh) et doit être lancé depuis un shell bash, pas directement depuis PowerShell.
+
+Exemple recommandé via le Makefile:
+
+```bash
+make gcp-setup GCP_PROJECT_ID=<project-id> GITHUB_OWNER=<github-owner> GITHUB_REPO=projet08
+```
+
+Si tu veux l'appeler directement, fais-le depuis Git Bash ou WSL:
+
+```bash
+bash scripts/setup-gcp.sh <project-id> <github-owner> projet08
+```
+
 ### Monitoring
 
 **Local (développement):**
@@ -104,23 +120,20 @@ pip install -e .
 ```text
 projet08/
 |-- api/
-|   |-- main.py                 # FastAPI (health, predict, metrics)
-|   |-- gradio_interface.py     # UI Gradio
-|   |-- onnx_runtime.py
-|   `-- ...
+|   `-- main.py                 # FastAPI (health, predict, metrics)
+|-- dashboard/
+|   `-- app.py                  # UI dashboard
 |-- model/
 |   |-- train.py                # Entraînement
-|   |-- evaluate_model.py       # Évaluation
 |   |-- convert_to_onnx.py      # Export ONNX
 |   |-- data_utils.py
+|   |-- handler.py
 |   `-- artifacts/
 |       `-- model.onnx
 |-- monitoring/
 |   |-- monitoring_utils.py
-|   |-- dashboard.py
-|   `-- evidently_config.py
+|   `-- grafana_drift_dashboard.json
 |-- profiling/
-|   |-- profiler.py
 |   |-- onnx_optimization.py
 |-- docker/
 |   |-- Dockerfile              # Image pour API + DB
@@ -167,6 +180,8 @@ make gcp-logs GCP_PROJECT_ID=...
 make gcp-status GCP_PROJECT_ID=...
 ```
 
+Si tu exécutes le setup GCP manuellement, utilise toujours `bash scripts/setup-gcp.sh ...` depuis Git Bash ou WSL; PowerShell ne lance pas correctement ce script `.sh`.
+
 Voir [Makefile](Makefile) pour plus de commandes.
 
 ## Documentation
@@ -174,26 +189,6 @@ Voir [Makefile](Makefile) pour plus de commandes.
 - [CICD_DOCUMENTATION.md](CICD_DOCUMENTATION.md) - Pipeline GitHub Actions détaillé
 - [CLOUD_RUN_DEPLOYMENT.md](CLOUD_RUN_DEPLOYMENT.md) - Configuration Cloud Run
 - [GCP_SETUP.md](GCP_SETUP.md) - Configuration GCP détaillée
-|   `-- onnx_optimization.py
-|-- tests/
-|-- config.ini
-|-- prometheus.yml
-`-- pyproject.toml
-```
-
-Execution locale
-
-API FastAPI:
-
-```bash
-uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
-```
-
-UI Gradio:
-
-```bash
-uv run python api/gradio_interface.py
-```
 
 Endpoints utiles
 
@@ -206,8 +201,8 @@ Endpoints utiles
 
 Profiling et monitoring
 
-- Profiling local (benchmark): `profiling/profiler.py`, `profiling/onnx_optimization.py`
-- Monitoring runtime: metriques Prometheus + dashboard Grafana
+- Profiling local (benchmark): `profiling/onnx_optimization.py`
+- Monitoring runtime: `monitoring/monitoring_utils.py` + dashboard Grafana
 - Le fichier `config.ini` permet d'activer/desactiver:
   - CPU profiling
   - Memory profiling
