@@ -80,8 +80,7 @@ jobs:
 
       - name: Login Docker to GCR
         run: |
-          gcloud auth print-access-token \
-            --impersonate-service-account=${{ secrets.GCP_SERVICE_ACCOUNT }} | \
+          gcloud auth print-access-token | \
             docker login -u oauth2accesstoken --password-stdin https://${{ env.REGISTRY }}
 
       - name: Set up Docker Buildx
@@ -162,7 +161,7 @@ jobs:
             --max-instances=100 \
             --min-instances=1 \
             --port=8000 \
-            --no-gen2
+            --execution-environment=gen1
 
           SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
             --region=${{ env.GCP_REGION }} \
