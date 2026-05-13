@@ -19,7 +19,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,16 +36,13 @@ jobs:
           pip install -e .
 
       - name: Run pytest - Data Utils
-        run: |
-          python -m pytest tests/test_data_utils.py -v --tb=short
+        run: python -m pytest tests/test_data_utils.py -v --tb=short
 
       - name: Run pytest - ONNX Integration
-        run: |
-          python -m pytest tests/test_onnx_integration.py -v --tb=short
+        run: python -m pytest tests/test_onnx_integration.py -v --tb=short
 
       - name: Run pytest - API Tests
-        run: |
-          python -m pytest tests/test_api.py -v --tb=short
+        run: python -m pytest tests/test_api.py -v --tb=short
 
       - name: Run all tests with coverage
         run: |
@@ -76,13 +73,16 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Configure Docker for GCR
+      - name: Login Docker to GCR
         run: |
-          gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
+          gcloud auth print-access-token \
+            --impersonate-service-account=${{ secrets.GCP_SERVICE_ACCOUNT }} | \
+            docker login -u oauth2accesstoken --password-stdin https://${{ env.REGISTRY }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -142,6 +142,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -150,7 +151,6 @@ jobs:
         id: deploy
         run: |
           IMAGE_URL="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}"
-          
           gcloud run deploy ${{ env.CLOUD_RUN_SERVICE }} \
             --image=$IMAGE_URL \
             --region=${{ env.GCP_REGION }} \
@@ -163,11 +163,10 @@ jobs:
             --min-instances=1 \
             --port=8000 \
             --no-gen2
-          
+
           SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
             --region=${{ env.GCP_REGION }} \
             --format='value(status.url)')
-          
           echo "service_url=$SERVICE_URL" >> $GITHUB_OUTPUT
 
       - name: Test deployed service
