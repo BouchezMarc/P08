@@ -82,7 +82,7 @@ jobs:
 
       - name: Configure Docker for GCR
         run: |
-          gcloud auth configure-docker ${{ env.REGISTRY }}
+          gcloud auth configure-docker ${{ env.REGISTRY }} --quiet
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -162,7 +162,6 @@ jobs:
             --max-instances=100 \
             --min-instances=1 \
             --port=8000 \
-            --set-env-vars="DATABASE_URL=${{ secrets.CLOUD_RUN_DATABASE_URL }}" \
             --no-gen2
           
           SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
