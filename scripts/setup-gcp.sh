@@ -193,7 +193,6 @@ create_workload_identity_pool() {
             --project=$PROJECT_ID \
             --location=global \
             --display-name="GitHub Actions Pool" \
-            --disabled=false \
             --quiet
         
         WORKLOAD_IDENTITY_POOL=$(gcloud iam workload-identity-pools describe \
@@ -228,8 +227,7 @@ create_workload_identity_provider() {
             --display-name="GitHub Provider" \
             --attribute-mapping='google.subject=assertion.sub,attribute.actor=assertion.actor,attribute.repository=assertion.repository,attribute.repository_owner=assertion.repository_owner' \
             --issuer-uri=https://token.actions.githubusercontent.com \
-            --attribute-condition="assertion.repository_owner == '${GITHUB_OWNER}'" \
-            --disabled=false \
+            --attribute-condition="assertion.repository_owner == '${GITHUB_OWNER}/${GITHUB_REPO}'" \
             --quiet
         
         WORKLOAD_IDENTITY_PROVIDER=$(gcloud iam workload-identity-pools providers describe \
