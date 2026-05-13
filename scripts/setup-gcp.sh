@@ -56,7 +56,7 @@ fi
 
 # 4️⃣ Ajouter les rôles
 info "Adding IAM roles..."
-ROLES=(roles/run.admin roles/iam.serviceAccountUser roles/artifactregistry.writer roles/cloudbuild.builds.editor)
+ROLES=(roles/run.admin roles/iam.serviceAccountUser roles/iam.serviceAccountTokenCreator roles/artifactregistry.writer roles/cloudbuild.builds.editor)
 for role in "${ROLES[@]}"; do
     gcloud projects add-iam-policy-binding "$PROJECT_ID" \
         --member="serviceAccount:$SA_EMAIL" \
