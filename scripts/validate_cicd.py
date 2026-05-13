@@ -120,7 +120,7 @@ def check_github_workflow():
         
         # Check essential jobs
         jobs = workflow.get("jobs", {})
-        required_jobs = ["test", "build", "profiling"]
+        required_jobs = ["test", "build", "deploy"]
         for job_name in required_jobs:
             if job_name in jobs:
                 print(f"✅ Job '{job_name}' defined")
