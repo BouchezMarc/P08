@@ -15,6 +15,7 @@ COPY api/ ./api/
 COPY db/ ./db/
 COPY monitoring/ ./monitoring/
 COPY profiling/ ./profiling/
+COPY dashboard/ ./dashboard/
 COPY data/ ./data/
 
 # Install dependencies
