@@ -143,40 +143,41 @@ async def log_predictions(rows: List[dict]):
 # LIFESPAN
 # =========================================================
 
+async def _load_resources(app: FastAPI):
+    global MODEL_READY, _test_csv_cache, DEFAULT_ROW, FEATURE_ORDER
+    try:
+        logger.info("Background loading ONNX model...")
+        session_options = ort.SessionOptions()
+        session_options.enable_profiling = True
+        session_options.profile_file_prefix = "onnx_profile"
+
+        session = ort.InferenceSession(
+            str(MODEL_PATH),
+            sess_options=session_options,
+            providers=["CPUExecutionProvider"]
+        )
+        app.state.model = session
+        app.state.ort_last_profile = None
+
+        logger.info("Background loading CSV baseline...")
+        if TEST_CSV_PATH.exists():
+            _test_csv_cache = pd.read_csv(TEST_CSV_PATH)
+            DEFAULT_ROW = _test_csv_cache.iloc[0].drop("TARGET", errors="ignore").to_dict()
+            FEATURE_ORDER = list(DEFAULT_ROW.keys())
+            MODEL_READY = True
+            logger.info(f"MODEL READY - {len(FEATURE_ORDER)} features")
+        else:
+            MODEL_READY = False
+            logger.error("CSV missing → MODEL NOT READY")
+    except Exception:
+        MODEL_READY = False
+        logger.exception("Background resource loading failed")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global MODEL_READY, _test_csv_cache, DEFAULT_ROW, FEATURE_ORDER
-
-    logger.info("Loading ONNX model...")
-
-    session_options = ort.SessionOptions()
-    session_options.enable_profiling = True
-    session_options.profile_file_prefix = "onnx_profile"
-
-    session = ort.InferenceSession(
-        str(MODEL_PATH),
-        sess_options=session_options,
-        providers=["CPUExecutionProvider"]
-    )
-    app.state.model = session
-    # storage for latest ONNX Runtime profiling trace (Chrome trace JSON)
-    app.state.ort_last_profile = None
-
-    logger.info("Loading CSV baseline...")
-
-    if TEST_CSV_PATH.exists():
-        _test_csv_cache = pd.read_csv(TEST_CSV_PATH)
-
-        DEFAULT_ROW = _test_csv_cache.iloc[0].drop("TARGET", errors="ignore").to_dict()
-        FEATURE_ORDER = list(DEFAULT_ROW.keys())
-
-        MODEL_READY = True
-        logger.info(f"MODEL READY - {len(FEATURE_ORDER)} features")
-
-    else:
-        MODEL_READY = False
-        logger.error("CSV missing → MODEL NOT READY")
-
+    # Start background loader and immediately yield so server starts fast
+    asyncio.create_task(_load_resources(app))
     yield
 
 # =========================================================

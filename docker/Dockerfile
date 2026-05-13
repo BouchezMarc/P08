@@ -36,14 +36,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /app /app
 
-# Health check
+# Health check (uses PORT env var, defaults to 8000)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import requests; requests.get('http://localhost:8000/health')" || exit 1
+    CMD python -c "import os, requests; port=os.environ.get('PORT','8000'); requests.get(f'http://localhost:{port}/health', timeout=5)" || exit 1
 
-# Expose port
+# Expose default port
 EXPOSE 8000
 
-# Run API
-CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", \
-    "-b", "0.0.0.0:8000", "--timeout", "120", "--access-logfile", "-", \
-    "--error-logfile", "-", "api.main:app"]
+# Run API: bind to $PORT if present (Cloud Run sets PORT), default to 8000
+CMD ["sh", "-c", "gunicorn -w 1 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:${PORT:-8000} --timeout 120 --access-logfile - --error-logfile - api.main:app"]
