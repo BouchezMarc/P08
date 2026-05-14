@@ -158,6 +158,14 @@ jobs:
               --data-file=- \
               --project=${{ env.GCP_PROJECT_ID }}
 
+      - name: Grant Cloud Run access to DATABASE_URL secret
+        run: |
+          PROJECT_NUMBER=$(gcloud projects describe ${{ env.GCP_PROJECT_ID }} --format='value(projectNumber)')
+          gcloud secrets add-iam-policy-binding db-url \
+            --project=${{ env.GCP_PROJECT_ID }} \
+            --member=serviceAccount:${PROJECT_NUMBER}-compute@developer.gserviceaccount.com \
+            --role=roles/secretmanager.secretAccessor
+
       - name: Deploy to Cloud Run
         id: deploy
         run: |
