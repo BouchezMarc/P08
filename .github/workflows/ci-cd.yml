@@ -147,6 +147,11 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Enable Secret Manager API
+        run: |
+          gcloud services enable secretmanager.googleapis.com \
+            --project=${{ env.GCP_PROJECT_ID }}
+
       - name: Create/Update DATABASE_URL secret in Secret Manager
         run: |
           echo -n "${{ secrets.DATABASE_URL }}" | \
