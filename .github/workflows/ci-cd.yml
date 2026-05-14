@@ -147,6 +147,17 @@ jobs:
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
 
+      - name: Create/Update DATABASE_URL secret in Secret Manager
+        run: |
+          echo -n "${{ secrets.DATABASE_URL }}" | \
+            gcloud secrets create db-url \
+              --data-file=- \
+              --project=${{ env.GCP_PROJECT_ID }} 2>/dev/null || \
+            echo -n "${{ secrets.DATABASE_URL }}" | \
+            gcloud secrets versions add db-url \
+              --data-file=- \
+              --project=${{ env.GCP_PROJECT_ID }}
+
       - name: Deploy to Cloud Run
         id: deploy
         run: |
@@ -162,7 +173,8 @@ jobs:
             --max-instances=20 \
             --min-instances=1 \
             --port=8000 \
-            --execution-environment=gen1
+            --execution-environment=gen1 \
+            --set-secrets DATABASE_URL=db-url:latest
 
           SERVICE_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} \
             --region=${{ env.GCP_REGION }} \
