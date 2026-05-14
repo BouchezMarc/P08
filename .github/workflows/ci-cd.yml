@@ -225,6 +225,11 @@ jobs:
           IMAGE_URL_DASH="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_DASHBOARD }}"
           echo "url=$IMAGE_URL_DASH" >> $GITHUB_OUTPUT
 
+      - name: Login Docker to GCR
+        run: |
+          gcloud auth print-access-token | \
+            docker login -u oauth2accesstoken --password-stdin https://${{ env.REGISTRY }}
+
       - name: Build and push Dashboard image to GCR
         uses: docker/build-push-action@v5
         with:
