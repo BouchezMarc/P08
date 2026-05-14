@@ -1,0 +1,21 @@
+FROM python:3.14-slim
+
+WORKDIR /app
+
+# Minimal runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only the dashboard app and minimal metadata
+COPY pyproject.toml readme.md ./
+COPY dashboard/ ./dashboard/
+
+# Install Streamlit and light deps
+RUN python -m pip install --no-cache-dir streamlit requests pandas matplotlib pydantic
+
+# Expose Streamlit default port
+EXPOSE 8501
+
+# Run Streamlit, binding to $PORT if provided
+CMD ["sh", "-c", "streamlit run dashboard/app.py --server.address=0.0.0.0 --server.port=${PORT:-8501} --server.headless=true"]

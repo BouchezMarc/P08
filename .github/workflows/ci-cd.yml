@@ -13,6 +13,7 @@ env:
   CLOUD_RUN_SERVICE: projet08-api
   REGISTRY: gcr.io
   IMAGE_NAME: projet08-api
+  IMAGE_NAME_DASHBOARD: projet08-dashboard
   PYTHON_VERSION: "3.14"
 
 jobs:
@@ -188,3 +189,64 @@ jobs:
           echo "Service: ${{ env.CLOUD_RUN_SERVICE }}"
           echo "URL: ${{ steps.deploy.outputs.service_url }}"
           echo "Version: ${{ github.ref_name }}"
+
+  deploy-dashboard:
+    name: Build & Deploy Dashboard
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Extract API service URL
+        id: get_api_url
+        run: |
+          API_URL=$(gcloud run services describe ${{ env.CLOUD_RUN_SERVICE }} --region=${{ env.GCP_REGION }} --format='value(status.url)')
+          echo "api_url=$API_URL" >> $GITHUB_OUTPUT
+
+      - name: Set Dashboard image URL
+        id: image_dash
+        run: |
+          IMAGE_URL_DASH="${{ env.REGISTRY }}/${{ env.GCP_PROJECT_ID }}/${{ env.IMAGE_NAME_DASHBOARD }}"
+          echo "url=$IMAGE_URL_DASH" >> $GITHUB_OUTPUT
+
+      - name: Build and push Dashboard image to GCR
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile.streamlit
+          push: true
+          tags: |
+            ${{ steps.image_dash.outputs.url }}:latest
+            ${{ steps.image_dash.outputs.url }}:${{ github.sha }}
+            ${{ steps.image_dash.outputs.url }}:${{ github.ref_name }}
+
+      - name: Deploy Streamlit to Cloud Run
+        run: |
+          IMAGE_DASH="${{ steps.image_dash.outputs.url }}:${{ github.ref_name }}"
+          gcloud run deploy projet08-dashboard \
+            --image=$IMAGE_DASH \
+            --region=${{ env.GCP_REGION }} \
+            --platform=managed \
+            --allow-unauthenticated \
+            --memory=512Mi \
+            --cpu=1 \
+            --timeout=300 \
+            --max-instances=3 \
+            --min-instances=0 \
+            --set-env-vars API_URL='${{ steps.get_api_url.outputs.api_url }}'
